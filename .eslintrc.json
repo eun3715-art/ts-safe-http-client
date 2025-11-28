@@ -1,0 +1,27 @@
+// .eslintrc.json
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": [
+    "@typescript-eslint",
+    "prettier"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier", 
+    "plugin:prettier/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module"
+  },
+  "rules": {
+    // 사용하지 않는 변수는 에러로 처리 (토스 기준)
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    // 명시적인 any 타입 사용 경고 (가능한 한 피하도록 유도)
+    "@typescript-eslint/no-explicit-any": "warn", 
+    // prettier 규칙을 eslint의 에러로 설정
+    "prettier/prettier": "error"
+  }
+}

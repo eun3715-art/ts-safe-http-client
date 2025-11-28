@@ -1,0 +1,42 @@
+{
+  "name": "ts-safe-http-client",
+  "version": "1.0.0",
+  "description": "TypeScript Schema 기반의 런타임 응답 검증 네트워크 라이브러리. 자동 재시도 및 타임아웃 기능을 통합하여 안정성을 제공합니다.",
+  "main": "dist/index.js",
+  "scripts": {
+    "start:dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "test": "echo \"Error: No test configured yet\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eun3715-art/ts-safe-http-client.git"
+  },
+  "keywords": [
+    "typescript",
+    "fetch",
+    "http",
+    "retry",
+    "validation"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eun3715-art/ts-safe-http-client/issues"
+  },
+  "homepage": "https://github.com/eun3715-art/ts-safe-http-client#readme",
+  "devDependencies": {
+    "@types/node": "^20.10.1",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "prettier": "^3.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  }
+}
