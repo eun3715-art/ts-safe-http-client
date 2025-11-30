@@ -43,13 +43,10 @@ export async function safeFetch<T>(
   } catch (err) {
     clearTimeout(timeoutId)
 
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Timeout (${timeout}ms) exceeded`)
-    }
-
     const message = err instanceof Error ? err.message : ''
+    const isAbort = err instanceof Error && err.name === 'AbortError'
 
-    const retryable = message.includes('Retryable')
+    const retryable = isAbort || message.includes('Retryable')
 
     if (retry > 0 && retryable) {
       const attempt = DEFAULT_RETRY - retry + 1
@@ -59,6 +56,10 @@ export async function safeFetch<T>(
       await sleep(wait)
 
       return safeFetch(url, schema, options, retry - 1)
+    }
+
+    if (isAbort) {
+      throw new Error(`Timeout (${timeout}ms) exceeded`)
     }
 
     throw err
