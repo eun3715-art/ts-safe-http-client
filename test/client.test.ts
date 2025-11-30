@@ -1,4 +1,4 @@
-import { safeFetch } from '../src/client';
+import { safeFetch } from '../src/HttpClient';
 import { z } from 'zod';
 
 describe('safeFetch', () => {
