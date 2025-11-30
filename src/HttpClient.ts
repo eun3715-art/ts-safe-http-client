@@ -9,11 +9,9 @@ import { ZodType } from 'zod'
 const DEFAULT_RETRY = 3
 const DEFAULT_TIMEOUT = 5000
 
-//일정 시간 지연
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
-//타입 검증 + 재시도 + 타임아웃을 포함한 안전한 fetch 래퍼
 export async function safeFetch<T>(
   url: string,
   schema: ZodType<T>,
@@ -21,43 +19,34 @@ export async function safeFetch<T>(
   retry = DEFAULT_RETRY,
 ): Promise<T> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
 
   try {
-    // fetch와 timeout 중 먼저 끝나는 쪽을 사용
-    const res = await Promise.race([
-      fetch(url, { ...options, signal: controller.signal }),
-      new Promise<Response>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Timeout (${DEFAULT_TIMEOUT}ms) exceeded`)),
-          DEFAULT_TIMEOUT,
-        ),
-      ),
-    ])
+    const res = await fetch(url, { ...options, signal: controller.signal })
 
-    clearTimeout(timeout)
+    clearTimeout(timeoutId)
 
-    // HTTP 오류 처리
     if (!res.ok) {
-      // 5xx는 재시도 대상
       if (res.status >= 500 && retry > 0) {
         throw new Error(`Retryable HTTP error: ${res.status}`)
       }
       throw new Error(`HTTP error: ${res.status} ${res.statusText}`)
     }
+
     const json = await res.json()
     return schema.parse(json)
   } catch (err) {
-    clearTimeout(timeout)
+    clearTimeout(timeoutId)
+
+    // AbortError는 타임아웃으로 처리
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Timeout (${DEFAULT_TIMEOUT}ms) exceeded`)
+    }
 
     const message = err instanceof Error ? err.message : ''
 
-    const retryable =
-      message.includes('Timeout') ||
-      message.includes('Retryable') ||
-      message.includes('abort')
+    const retryable = message.includes('Retryable')
 
-    // 재시도 로직
     if (retry > 0 && retryable) {
       const attempt = DEFAULT_RETRY - retry + 1
       const wait = 1000 * attempt

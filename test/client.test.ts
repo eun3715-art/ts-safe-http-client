@@ -45,7 +45,6 @@ describe('safeFetch', () => {
     const promise = safeFetch('http://retry.com', schema)
 
     await jest.advanceTimersByTimeAsync(6000)
-    await Promise.resolve()
 
     const result = await promise
 
@@ -54,13 +53,20 @@ describe('safeFetch', () => {
   })
 
   it('타임아웃이 발생하면 에러를 던진다', async () => {
-    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}))
+    (global.fetch as jest.Mock).mockImplementation(
+      (_url: string, options: RequestInit) =>
+        new Promise((_, reject) => {
+          options.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        })
+    )
 
     const promise = safeFetch('http://timeout.com', schema, {}, 0)
 
     await jest.advanceTimersByTimeAsync(5000)
-    await jest.runOnlyPendingTimersAsync()
-    await Promise.resolve()
 
     await expect(promise).rejects.toThrow(/Timeout/i)
     expect(fetch).toHaveBeenCalledTimes(1)
