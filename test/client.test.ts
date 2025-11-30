@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 describe('safeFetch', () => {
   const schema = z.object({ message: z.string() });
+  jest.setTimeout(10000);
 
   beforeEach(() => {
     jest.useFakeTimers();

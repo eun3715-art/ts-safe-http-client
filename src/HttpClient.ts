@@ -4,7 +4,7 @@
 //3.타임아웃 처리 로직 구현
 // =========================================================================
 
-import { ZodType } from "zod";
+import { ZodType } from 'zod'
 
 const DEFAULT_RETRY = 3
 const DEFAULT_TIMEOUT = 5000
