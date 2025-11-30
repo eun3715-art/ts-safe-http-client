@@ -1,7 +1,7 @@
 // =========================================================================
-// 1. 런타임 응답 검증 (Zod 사용)
-// 2. 자동 재시도 로직 구현
-// 3. 타임아웃 처리 로직 구현 (타임아웃도 재시도 대상 포함)
+//1.런타임 응답 검증 (Zod 사용)
+//2.자동 재시도 로직 구현
+//3.타임아웃 처리 로직 구현
 // =========================================================================
 
 import { ZodType } from 'zod'
@@ -12,27 +12,24 @@ const DEFAULT_TIMEOUT = 5000
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
+export interface SafeFetchOptions extends RequestInit {
+  timeout?: number
+}
+
 export async function safeFetch<T>(
   url: string,
   schema: ZodType<T>,
-  options: RequestInit = {},
+  options: SafeFetchOptions = {},
   retry = DEFAULT_RETRY,
 ): Promise<T> {
+  const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
 
   try {
-    const res = await Promise.race([
-      fetch(url, { ...options, signal: controller.signal }),
-      new Promise<Response>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Timeout (${DEFAULT_TIMEOUT}ms) exceeded`)),
-          DEFAULT_TIMEOUT,
-        ),
-      ),
-    ])
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal })
 
-    clearTimeout(timeout)
+    clearTimeout(timeoutId)
 
     if (!res.ok) {
       if (res.status >= 500 && retry > 0) {
@@ -40,17 +37,19 @@ export async function safeFetch<T>(
       }
       throw new Error(`HTTP error: ${res.status} ${res.statusText}`)
     }
+
     const json = await res.json()
     return schema.parse(json)
   } catch (err) {
-    clearTimeout(timeout)
+    clearTimeout(timeoutId)
+
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Timeout (${timeout}ms) exceeded`)
+    }
 
     const message = err instanceof Error ? err.message : ''
 
-    const retryable =
-      message.includes('Timeout') ||
-      message.includes('Retryable') ||
-      message.includes('abort')
+    const retryable = message.includes('Retryable')
 
     if (retry > 0 && retryable) {
       const attempt = DEFAULT_RETRY - retry + 1
