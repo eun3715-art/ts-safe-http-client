@@ -4,8 +4,6 @@ import { z } from 'zod'
 describe('safeFetch', () => {
   const schema = z.object({ message: z.string() })
 
-  jest.setTimeout(15000)
-
   beforeEach(() => {
     jest.useFakeTimers({ legacyFakeTimers: false })
     global.fetch = jest.fn()
@@ -17,7 +15,7 @@ describe('safeFetch', () => {
   })
 
   it('정상 응답이면 스키마 검증 후 데이터를 반환한다', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ message: 'ok' }),
@@ -30,7 +28,7 @@ describe('safeFetch', () => {
   })
 
   it('5xx 응답이면 재시도 후 성공할 수 있다', async () => {
-    (global.fetch as jest.Mock)
+    ;(global.fetch as jest.Mock)
       .mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -53,22 +51,25 @@ describe('safeFetch', () => {
   })
 
   it('타임아웃이 발생하면 에러를 던진다', async () => {
-    (global.fetch as jest.Mock).mockImplementation(
-      (_url: string, options: RequestInit) =>
+    jest.useRealTimers()
+
+    ;(global.fetch as jest.Mock).mockImplementation(
+      (_url: string, options: { signal?: AbortSignal }) =>
         new Promise((_, reject) => {
-          options.signal?.addEventListener('abort', () => {
-            const err = new Error('The operation was aborted')
-            err.name = 'AbortError'
-            reject(err)
-          })
+          if (options?.signal) {
+            options.signal.addEventListener('abort', () => {
+              const err = new Error('The operation was aborted')
+              err.name = 'AbortError'
+              reject(err)
+            })
+          }
         })
     )
 
-    const promise = safeFetch('http://timeout.com', schema, {}, 0)
+    await expect(
+      safeFetch('http://timeout.com', schema, { timeout: 50 }, 0)
+    ).rejects.toThrow(/Timeout/i)
 
-    await jest.advanceTimersByTimeAsync(5000)
-
-    await expect(promise).rejects.toThrow(/Timeout/i)
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 })

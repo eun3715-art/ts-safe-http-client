@@ -12,17 +12,22 @@ const DEFAULT_TIMEOUT = 5000
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
+export interface SafeFetchOptions extends RequestInit {
+  timeout?: number
+}
+
 export async function safeFetch<T>(
   url: string,
   schema: ZodType<T>,
-  options: RequestInit = {},
+  options: SafeFetchOptions = {},
   retry = DEFAULT_RETRY,
 ): Promise<T> {
+  const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
 
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal })
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal })
 
     clearTimeout(timeoutId)
 
@@ -38,9 +43,8 @@ export async function safeFetch<T>(
   } catch (err) {
     clearTimeout(timeoutId)
 
-    // AbortError는 타임아웃으로 처리
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Timeout (${DEFAULT_TIMEOUT}ms) exceeded`)
+      throw new Error(`Timeout (${timeout}ms) exceeded`)
     }
 
     const message = err instanceof Error ? err.message : ''
