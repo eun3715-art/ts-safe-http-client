@@ -1,79 +1,68 @@
-import { safeFetch } from '../src/HttpClient';
-import { z } from 'zod';
+import { safeFetch } from '../src/HttpClient'
+import { z } from 'zod'
 
 describe('safeFetch', () => {
-  const schema = z.object({ message: z.string() });
+  const schema = z.object({ message: z.string() })
 
-  jest.setTimeout(15000); // 전체 테스트 타임아웃 여유
+  jest.setTimeout(15000)
 
   beforeEach(() => {
-    jest.useFakeTimers();
-    global.fetch = jest.fn();
-  });
+    jest.useFakeTimers({ legacyFakeTimers: false })
+    global.fetch = jest.fn()
+  })
 
   afterEach(() => {
-    jest.useRealTimers();
-    jest.clearAllMocks();
-  });
+    jest.useRealTimers()
+    jest.clearAllMocks()
+  })
 
   it('정상 응답이면 스키마 검증 후 데이터를 반환한다', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue(
-      Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ message: 'ok' }),
-      })
-    );
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ message: 'ok' }),
+    })
 
-    const result = await safeFetch('http://test.com', schema);
+    const result = await safeFetch('http://test.com', schema)
 
-    expect(result.message).toBe('ok');
-    expect(fetch).toHaveBeenCalledTimes(1);
-  });
+    expect(result.message).toBe('ok')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
 
   it('5xx 응답이면 재시도 후 성공할 수 있다', async () => {
     (global.fetch as jest.Mock)
-      .mockResolvedValueOnce(
-        Promise.resolve({
-          ok: false,
-          status: 500,
-          json: () => Promise.resolve({}),
-        })
-      )
-      .mockResolvedValueOnce(
-        Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ message: 'recovered' }),
-        })
-      );
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ message: 'recovered' }),
+      })
 
-    const promise = safeFetch('http://retry.com', schema);
+    const promise = safeFetch('http://retry.com', schema)
 
-    // 1초 (첫 재시도 딜레이)
-    jest.advanceTimersByTime(1000);
+    await jest.advanceTimersByTimeAsync(6000)
+    await Promise.resolve()
 
-    const result = await promise;
+    const result = await promise
 
-    expect(result.message).toBe('recovered');
-    expect(fetch).toHaveBeenCalledTimes(2);
-  });
+    expect(result.message).toBe('recovered')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
 
   it('타임아웃이 발생하면 에러를 던진다', async () => {
-    // fetch는 절대 resolve되지 않음
-    (global.fetch as jest.Mock).mockImplementation(() => {
-      return new Promise(() => {});
-    });
+    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}))
 
-    const promise = safeFetch('http://timeout.com', schema);
+    const promise = safeFetch('http://timeout.com', schema, {}, 0)
 
-    // abort + timeout 강제 실행
-    jest.advanceTimersByTime(5000);
+    await jest.advanceTimersByTimeAsync(5000)
+    await jest.runOnlyPendingTimersAsync()
+    await Promise.resolve()
 
-    // Microtask queue flush
-    await Promise.resolve();
-
-    await expect(promise).rejects.toThrow(/Timeout/i);
-    expect(fetch).toHaveBeenCalledTimes(1);
-  });
-});
+    await expect(promise).rejects.toThrow(/Timeout/i)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
