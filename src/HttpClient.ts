@@ -71,4 +71,3 @@ export async function safeFetch<T>(
     throw err
   }
 }
-
