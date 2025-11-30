@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ts-safe-http-client Demo</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  h1 { color: #2c3e50; }
+  pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+  button { padding: 10px 20px; margin-top: 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>ts-safe-http-client Demo</h1>
+<p>Click the button to fetch data and validate using Zod schema.</p>
+<button id="fetchBtn">Fetch Data</button>
+<pre id="result"></pre>
+
+<script type="module">
+import { safeFetch } from '../src/HttpClient.js';
+import { z } from 'https://cdn.jsdelivr.net/npm/zod@3.22.2/dist/zod.mjs';
+
+const schema = z.object({
+  userId: z.number(),
+  id: z.number(),
+  title: z.string(),
+  body: z.string()
+});
+
+const resultEl = document.getElementById('result');
+const fetchBtn = document.getElementById('fetchBtn');
+
+fetchBtn.addEventListener('click', async () => {
+  resultEl.textContent = 'Loading...';
+  try {
+    const data = await safeFetch('https://jsonplaceholder.typicode.com/posts/1', schema);
+    resultEl.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    resultEl.textContent = `Error: ${err.message}`;
+  }
+});
+</script>
+</body>
+</html>
