@@ -18,19 +18,16 @@
 ------------------------------------------------------------------------
 
 ## 프로젝트 구조
-
 ```txt
 src
- ├─ httpClient.ts      # 핵심 HTTP 클라이언트 로직
- ├─ types.ts           # 공통 타입 정의
- └─ index.ts           # 전체 export 모음
+ └─ HttpClient.ts      # 핵심 HTTP 클라이언트 로직 + 타입 정의
 
-tests
- └─ httpClient.test.ts # Jest 기반 테스트 (응답 검증, 재시도, 타임아웃)
+test
+ └─ client.test.ts     # Jest 기반 테스트
 
 .github
  └─ workflows
-     └─ main.yml       # CI 자동 테스트 및 빌드 검증
+     └─ main.yml       # CI 자동 테스트
 ```
 
 ### main.yml 역할

@@ -23,8 +23,8 @@
     "retry",
     "validation"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "eun3715-art",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/eun3715-art/ts-safe-http-client/issues"
   },
