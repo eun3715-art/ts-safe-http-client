@@ -1,31 +1,23 @@
-
-
 {
   "compilerOptions": {
-    /* 기본 환경 설정 (Base Configuration) */
-    "target": "es2022", // 최신 Node.js 환경에 맞게 조정
+    "target": "es2022",
     "module": "nodenext", 
     "moduleResolution": "nodenext", 
     
-    /* 경로 및 출력 설정 (Paths and Output) */
     "rootDir": "./src",        
     "outDir": "./dist",        
     "declaration": true,       
     "sourceMap": true,         
     
-    /* 엄격한 타입 검사 설정 (Stricter Typechecking Options) */
     "strict": true,            
     "noImplicitReturns": true, 
     "noImplicitOverride": true, 
     "noUnusedLocals": true,    
     "noUnusedParameters": true, 
-    
-    /* 모듈 및 스타일 관리 설정 (Module and Style) */
     "esModuleInterop": true,
     "skipLibCheck": true,      
     "forceConsistentCasingInFileNames": true, 
     
-    /* CLI가 컴포넌트를 생성한다면 필요 */
     "jsx": "react-jsx" 
   },
   "include": [
