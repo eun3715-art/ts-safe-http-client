@@ -118,7 +118,7 @@ safeFetch<T>(
   url: string,
   schema: ZodSchema<T>,
   options?: SafeFetchOptions,
-  retryCount?: number
+  maxRetry?: number
 ): Promise<T>
 ```
 
@@ -129,13 +129,14 @@ safeFetch<T>(
 | `url` | `string` | 요청할 API 엔드포인트 |
 | `schema` | `ZodSchema<T>` | 응답 데이터 검증용 스키마 |
 | `options` | `SafeFetchOptions` | fetch 옵션 (timeout, headers 등) |
-| `retryCount` | `number` | 재시도 횟수 (기본값: 3) |
+| `maxRetry` | `number` | 최대 재시도 횟수 (기본값: 3) |
 
 ### SafeFetchOptions
 
 ```ts
 interface SafeFetchOptions extends RequestInit {
   timeout?: number;
+  onRetry?: (attempt: number, delay: number, retriesLeft: number) => void;
 }
 ```
 
@@ -159,10 +160,14 @@ interface SafeFetchOptions extends RequestInit {
 
 Jest 테스트에서 다음을 검증합니다.
 
-- 스키마 검증
+- 정상 응답 스키마 검증
 - 5xx 응답 후 재시도 + 성공
 - 타임아웃 후 재시도 + 성공
 - 재시도 소진 후 명확한 에러 발생
+- 4xx 응답 즉시 실패 (재시도 없음)
+- 5xx 재시도 횟수 소진 시 에러
+- Zod 스키마 불일치 에러
+- 네트워크 에러 즉시 실패
 
 ### 테스트 실행
 

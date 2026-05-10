@@ -4,7 +4,6 @@
   "description": "TypeScript Schema 기반의 런타임 응답 검증 네트워크 라이브러리. 자동 재시도 및 타임아웃 기능을 통합하여 안정성을 제공합니다.",
   "main": "dist/index.js",
   "scripts": {
-    "start:dev": "ts-node src/index.ts",
     "build": "tsc",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

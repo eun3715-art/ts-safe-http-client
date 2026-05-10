@@ -1,9 +1,3 @@
-// =========================================================================
-//1.런타임 응답 검증 (Zod 사용)
-//2.자동 재시도 로직 구현
-//3.타임아웃 처리 로직 구현
-// =========================================================================
-
 import { ZodType } from 'zod'
 
 const DEFAULT_RETRY = 3
@@ -12,28 +6,45 @@ const DEFAULT_TIMEOUT = 5000
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
+class RetryableError extends Error {
+  constructor(status: number) {
+    super(`Server error: ${status}`)
+    this.name = 'RetryableError'
+  }
+}
+
 export interface SafeFetchOptions extends RequestInit {
   timeout?: number
+  onRetry?: (attempt: number, delay: number, retriesLeft: number) => void
 }
 
 export async function safeFetch<T>(
   url: string,
   schema: ZodType<T>,
   options: SafeFetchOptions = {},
-  retry = DEFAULT_RETRY,
+  maxRetry = DEFAULT_RETRY,
 ): Promise<T> {
-  const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options
+  return fetchWithRetry(url, schema, options, maxRetry, 1)
+}
+
+async function fetchWithRetry<T>(
+  url: string,
+  schema: ZodType<T>,
+  options: SafeFetchOptions,
+  retriesLeft: number,
+  attempt: number,
+): Promise<T> {
+  const { timeout = DEFAULT_TIMEOUT, onRetry, ...fetchOptions } = options
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeout)
 
   try {
     const res = await fetch(url, { ...fetchOptions, signal: controller.signal })
-
     clearTimeout(timeoutId)
 
     if (!res.ok) {
-      if (res.status >= 500 && retry > 0) {
-        throw new Error(`Retryable HTTP error: ${res.status}`)
+      if (res.status >= 500 && retriesLeft > 0) {
+        throw new RetryableError(res.status)
       }
       throw new Error(`HTTP error: ${res.status} ${res.statusText}`)
     }
@@ -43,19 +54,14 @@ export async function safeFetch<T>(
   } catch (err) {
     clearTimeout(timeoutId)
 
-    const message = err instanceof Error ? err.message : ''
     const isAbort = err instanceof Error && err.name === 'AbortError'
+    const isRetryable = isAbort || err instanceof RetryableError
 
-    const retryable = isAbort || message.includes('Retryable')
-
-    if (retry > 0 && retryable) {
-      const attempt = DEFAULT_RETRY - retry + 1
-      const wait = 1000 * attempt
-
-      console.warn(`[safeFetch] retry in ${wait}ms (${retry - 1} left)`)
-      await sleep(wait)
-
-      return safeFetch(url, schema, options, retry - 1)
+    if (retriesLeft > 0 && isRetryable) {
+      const delay = 1000 * attempt
+      onRetry?.(attempt, delay, retriesLeft - 1)
+      await sleep(delay)
+      return fetchWithRetry(url, schema, options, retriesLeft - 1, attempt + 1)
     }
 
     if (isAbort) {

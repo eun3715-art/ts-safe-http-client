@@ -91,4 +91,56 @@ describe('safeFetch', () => {
 
     expect(fetch).toHaveBeenCalledTimes(1)
   })
+
+  it('4xx 응답이면 재시도 없이 즉시 에러를 던진다', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    })
+
+    await expect(
+      safeFetch('http://test.com', schema)
+    ).rejects.toThrow('HTTP error: 404 Not Found')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('5xx 응답에서 재시도를 모두 소진하면 에러를 던진다', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+    })
+
+    await expect(
+      safeFetch('http://test.com', schema, {}, 1)
+    ).rejects.toThrow('HTTP error: 503')
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+  }, 10000)
+
+  it('스키마 검증 실패 시 에러를 던진다', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ wrong: 'field' }),
+    })
+
+    await expect(
+      safeFetch('http://test.com', schema)
+    ).rejects.toThrow()
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('네트워크 에러는 재시도 없이 즉시 던진다', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('Network failure'))
+
+    await expect(
+      safeFetch('http://test.com', schema)
+    ).rejects.toThrow('Network failure')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
 })

@@ -15,14 +15,11 @@
     "noUnusedLocals": true,    
     "noUnusedParameters": true, 
     "esModuleInterop": true,
-    "skipLibCheck": true,      
-    "forceConsistentCasingInFileNames": true, 
-    
-    "jsx": "react-jsx" 
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/**/*.ts", 
-    "src/**/*.tsx"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
