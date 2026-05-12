@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>ts-safe-http-client demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 32px;
+    }
+
+    .scenarios {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .btn {
+      padding: 14px 16px;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      background: #1a1f2e;
+      color: #e2e8f0;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn:hover { border-color: #334155; background: #1e2638; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn .label { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+    .btn .desc  { font-size: 0.75rem; color: #64748b; }
+
+    .btn.success .label { color: #4ade80; }
+    .btn.retry   .label { color: #fb923c; }
+    .btn.timeout .label { color: #f59e0b; }
+    .btn.fail    .label { color: #f87171; }
+    .btn.zod     .label { color: #c084fc; }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .log-title { font-size: 0.8rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; }
+    .clear-btn {
+      font-size: 0.75rem;
+      color: #475569;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .clear-btn:hover { color: #94a3b8; }
+
+    #log {
+      background: #0d1117;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 320px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      line-height: 1.7;
+      overflow-y: auto;
+      max-height: 520px;
+    }
+
+    .empty { color: #334155; font-style: italic; }
+
+    .log-group { margin-bottom: 16px; border-left: 2px solid #1e293b; padding-left: 12px; }
+    .log-group-title {
+      font-weight: 700;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .log-line { display: flex; align-items: flex-start; gap: 8px; }
+    .log-line .time { color: #334155; flex-shrink: 0; width: 52px; }
+    .log-line .icon { flex-shrink: 0; }
+    .log-line .msg  { color: #94a3b8; }
+
+    .ok      { color: #4ade80; }
+    .warn    { color: #fb923c; }
+    .err     { color: #f87171; }
+    .info    { color: #60a5fa; }
+    .muted   { color: #475569; }
+    .purple  { color: #c084fc; }
+    .yellow  { color: #fbbf24; }
+
+    .spinner {
+      display: inline-block;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-box {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-top: 4px;
+      color: #a3e635;
+      word-break: break-all;
+    }
+    .error-box {
+      background: #1c0f0f;
+      border: 1px solid #3f1515;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-top: 4px;
+      color: #fca5a5;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+<h1>ts-safe-http-client</h1>
+<p class="subtitle">실제 API를 호출해서 각 시나리오가 어떻게 동작하는지 확인한다.</p>
+
+<div class="scenarios">
+  <button class="btn success" onclick="run('success')">
+    <div class="label">✓ 정상 응답</div>
+    <div class="desc">jsonplaceholder → Zod 검증 통과</div>
+  </button>
+  <button class="btn retry" onclick="run('retry')">
+    <div class="label">↻ 5xx 재시도</div>
+    <div class="desc">httpbin 500 → 1s → 2s → 실패</div>
+  </button>
+  <button class="btn timeout" onclick="run('timeout')">
+    <div class="label">⏱ 타임아웃 재시도</div>
+    <div class="desc">10초 응답에 300ms timeout → 재시도 → 실패</div>
+  </button>
+  <button class="btn fail" onclick="run('fail')">
+    <div class="label">✕ 4xx 즉시 실패</div>
+    <div class="desc">존재하지 않는 리소스 → 재시도 없음</div>
+  </button>
+  <button class="btn zod" onclick="run('zod')">
+    <div class="label">⚠ Zod 검증 실패</div>
+    <div class="desc">응답은 200이지만 스키마 불일치 → 즉시 실패</div>
+  </button>
+</div>
+
+<div class="log-header">
+  <span class="log-title">Request Log</span>
+  <button class="clear-btn" onclick="clearLog()">clear</button>
+</div>
+<div id="log"><span class="empty">버튼을 눌러 시나리오를 실행한다.</span></div>
+
+<script>
+const DEFAULT_TIMEOUT = 5000
+const DEFAULT_RETRY   = 3
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+// --- 핵심 로직 (HttpClient.ts 동일) ---
+class RetryableError extends Error {
+  constructor(status) {
+    super(`Server error: ${status}`)
+    this.name = 'RetryableError'
+    this.status = status
+  }
+}
+
+async function safeFetch(url, validate, options = {}, maxRetry = DEFAULT_RETRY, _log) {
+  return _fetchWithRetry(url, validate, options, maxRetry, 1, _log)
+}
+
+async function _fetchWithRetry(url, validate, options, retriesLeft, attempt, log) {
+  const { timeout = DEFAULT_TIMEOUT, onRetry, ...fetchOptions } = options
+  const controller = new AbortController()
+  const timeoutId  = setTimeout(() => controller.abort(), timeout)
+
+  log('info', `→ fetch (시도 ${attempt}회)`, `${url.slice(0, 60)}${url.length > 60 ? '…' : ''}`)
+
+  try {
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal })
+    clearTimeout(timeoutId)
+
+    if (!res.ok) {
+      if (res.status >= 500 && retriesLeft > 0) throw new RetryableError(res.status)
+      throw new Error(`HTTP error: ${res.status} ${res.statusText}`)
+    }
+
+    const json = await res.json()
+    const result = validate(json)
+    return result
+  } catch (err) {
+    clearTimeout(timeoutId)
+
+    const isAbort    = err instanceof Error && err.name === 'AbortError'
+    const isRetryable = isAbort || err instanceof RetryableError
+
+    if (retriesLeft > 0 && isRetryable) {
+      const delay = 1000 * attempt
+      log('warn', `↻ 재시도 대기`, `${delay / 1000}s 후 재시도 (남은 횟수: ${retriesLeft - 1})`)
+      onRetry?.(attempt, delay, retriesLeft - 1)
+      await sleep(delay)
+      return _fetchWithRetry(url, validate, options, retriesLeft - 1, attempt + 1, log)
+    }
+
+    if (isAbort) throw new Error(`Timeout (${timeout}ms) exceeded`)
+    throw err
+  }
+}
+
+// --- 스키마 검증 (Zod 대신 직접 구현) ---
+function makeValidator(shape) {
+  return (json) => {
+    for (const [key, type] of Object.entries(shape)) {
+      if (typeof json[key] !== type) {
+        const err = new Error(`ZodError: expected '${key}' to be ${type}, got ${typeof json[key]}`)
+        err.name = 'ZodError'
+        throw err
+      }
+    }
+    return json
+  }
+}
+
+// --- 시나리오 정의 ---
+const SCENARIOS = {
+  success: {
+    title: '정상 응답 + Zod 검증',
+    color: '#4ade80',
+    run: async (log) => {
+      const validate = makeValidator({ userId: 'number', id: 'number', title: 'string', body: 'string' })
+      const data = await safeFetch(
+        'https://jsonplaceholder.typicode.com/posts/1',
+        validate, {}, 3, log
+      )
+      log('ok', '✓ 성공', JSON.stringify({ id: data.id, title: data.title.slice(0, 40) + '…' }))
+      return data
+    }
+  },
+  retry: {
+    title: '5xx → 재시도 → 최종 실패',
+    color: '#fb923c',
+    run: async (log) => {
+      const validate = makeValidator({})
+      await safeFetch(
+        'https://httpbin.org/status/500',
+        validate,
+        { onRetry: (a, d, l) => log('warn', `↻ onRetry 콜백`, `attempt=${a}, delay=${d}ms, left=${l}`) },
+        2, log
+      )
+    }
+  },
+  timeout: {
+    title: '타임아웃 → 재시도 → 최종 실패',
+    color: '#fbbf24',
+    run: async (log) => {
+      const validate = makeValidator({})
+      await safeFetch(
+        'https://httpbin.org/delay/10',
+        validate,
+        { timeout: 800, onRetry: (a, d, l) => log('warn', `↻ onRetry 콜백`, `attempt=${a}, delay=${d}ms, left=${l}`) },
+        1, log
+      )
+    }
+  },
+  fail: {
+    title: '4xx → 즉시 실패 (재시도 없음)',
+    color: '#f87171',
+    run: async (log) => {
+      const validate = makeValidator({ id: 'number', title: 'string' })
+      await safeFetch(
+        'https://jsonplaceholder.typicode.com/posts/99999999',
+        validate, {}, 3, log
+      )
+    }
+  },
+  zod: {
+    title: 'Zod 검증 실패 → 즉시 실패',
+    color: '#c084fc',
+    run: async (log) => {
+      // 응답은 200이지만 스키마가 맞지 않음
+      const validate = makeValidator({ nonexistent: 'string', fakeField: 'number' })
+      await safeFetch(
+        'https://jsonplaceholder.typicode.com/posts/1',
+        validate, {}, 3, log
+      )
+    }
+  }
+}
+
+// --- 로그 UI ---
+let running = false
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '<span class="empty">버튼을 눌러 시나리오를 실행한다.</span>'
+}
+
+function getButtons() {
+  return document.querySelectorAll('.btn')
+}
+
+function startTime() {
+  return Date.now()
+}
+
+async function run(key) {
+  if (running) return
+  running = true
+  getButtons().forEach(b => b.disabled = true)
+
+  const scenario = SCENARIOS[key]
+  const logEl = document.getElementById('log')
+
+  if (logEl.querySelector('.empty')) logEl.innerHTML = ''
+
+  const group = document.createElement('div')
+  group.className = 'log-group'
+
+  const titleEl = document.createElement('div')
+  titleEl.className = 'log-group-title'
+  titleEl.style.color = scenario.color
+  titleEl.textContent = scenario.title
+  group.appendChild(titleEl)
+  logEl.appendChild(group)
+  logEl.scrollTop = logEl.scrollHeight
+
+  const t0 = startTime()
+
+  const log = (type, icon, msg) => {
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2) + 's'
+    const line = document.createElement('div')
+    line.className = 'log-line'
+
+    const colorMap = { ok: 'ok', warn: 'warn', err: 'err', info: 'info', muted: 'muted', purple: 'purple', yellow: 'yellow' }
+    line.innerHTML = `
+      <span class="time muted">${elapsed}</span>
+      <span class="icon ${colorMap[type] || 'info'}">${icon}</span>
+      <span class="msg">${escHtml(msg)}</span>
+    `
+    group.appendChild(line)
+    logEl.scrollTop = logEl.scrollHeight
+  }
+
+  try {
+    const result = await scenario.run(log)
+    if (result) {
+      const box = document.createElement('div')
+      box.className = 'result-box'
+      box.textContent = JSON.stringify(result, null, 2).slice(0, 300)
+      group.appendChild(box)
+    }
+  } catch (err) {
+    const isZod = err.name === 'ZodError'
+    const isTimeout = err.message.includes('Timeout')
+    const icon = isZod ? '⚠' : '✕'
+    const cls  = isZod ? 'purple' : 'err'
+    log(cls === 'purple' ? 'purple' : 'err', icon, err.message)
+
+    const box = document.createElement('div')
+    box.className = 'error-box'
+    box.textContent = `${err.name}: ${err.message}`
+    group.appendChild(box)
+  }
+
+  logEl.scrollTop = logEl.scrollHeight
+  running = false
+  getButtons().forEach(b => b.disabled = false)
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+</script>
+</body>
+</html>

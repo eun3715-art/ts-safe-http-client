@@ -36,7 +36,9 @@ async function run() {
       z.any(),
       {
         onRetry: (attempt, delay, left) =>
-          console.log(`  [재시도 ${attempt}회] ${delay}ms 대기, 남은 횟수: ${left}`),
+          console.log(
+            `  [재시도 ${attempt}회] ${delay}ms 대기, 남은 횟수: ${left}`,
+          ),
       },
       2,
     )
@@ -47,7 +49,10 @@ async function run() {
   // 4. 4xx는 재시도 없이 즉시 실패
   sep('4. 4xx 즉시 실패')
   try {
-    await safeFetch('https://jsonplaceholder.typicode.com/posts/99999', PostSchema)
+    await safeFetch(
+      'https://jsonplaceholder.typicode.com/posts/99999',
+      PostSchema,
+    )
   } catch (err) {
     console.log('에러:', err instanceof Error ? err.message : err)
   }
@@ -61,7 +66,9 @@ async function run() {
       {
         timeout: 300,
         onRetry: (attempt, delay, left) =>
-          console.log(`  [재시도 ${attempt}회] ${delay}ms 대기, 남은 횟수: ${left}`),
+          console.log(
+            `  [재시도 ${attempt}회] ${delay}ms 대기, 남은 횟수: ${left}`,
+          ),
       },
       1,
     )
