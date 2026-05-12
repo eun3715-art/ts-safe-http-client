@@ -1,45 +1,31 @@
 <h1 align="center">ts-safe-http-client</h1>
 
 <p align="center">
-  A type-safe, resilient HTTP client wrapper for TypeScript — built on <code>fetch</code> with Zod validation, automatic retries, and timeout control.
+  타입 안전성과 네트워크 안정성을 함께 챙기는 TypeScript fetch 래퍼
 </p>
 
 <p align="center">
   <a href="https://github.com/eun3715-art/ts-safe-http-client/actions"><img src="https://github.com/eun3715-art/ts-safe-http-client/actions/workflows/main.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Zod-validated-ef4444?logo=zod&logoColor=white" alt="Zod" />
+  <img src="https://img.shields.io/badge/Zod-validated-ef4444" alt="Zod" />
   <img src="https://img.shields.io/badge/license-MIT-22c55e" alt="MIT License" />
 </p>
 
 ---
 
-## Overview
+## 왜 만들었나
 
-`ts-safe-http-client` wraps the native `fetch` API to give you **predictable, validated HTTP responses** even on unreliable networks.
+API 응답은 믿을 수 없다. 스펙이 바뀌거나, 서버가 잠깐 죽거나, 네트워크가 느려지거나. 그때마다 매번 try-catch에 retry 로직을 직접 짜는 건 반복 작업이다.
 
-```
-safeFetch(url, ZodSchema, options?, maxRetry?)
-   │
-   ├─ AbortController timeout
-   ├─ Zod runtime validation
-   └─ Auto-retry on 5xx / timeout (linear backoff)
-```
+`safeFetch` 하나로 아래 세 가지를 묶었다.
+
+- **Zod 응답 검증** — 타입이 맞지 않으면 런타임에서 즉시 잡아낸다
+- **자동 재시도** — 5xx나 타임아웃이면 알아서 재시도한다
+- **타임아웃 제어** — `AbortController`로 요청 시간을 직접 관리한다
 
 ---
 
-## Features
-
-| Feature | Details |
-|---|---|
-| **Runtime validation** | Zod schema parses every response — type mismatches throw immediately |
-| **Auto retry** | Retries on `5xx` and `AbortError` with 1 s · 2 s · 3 s linear backoff |
-| **Timeout control** | Per-request timeout via `AbortController`; throws a clear `Timeout exceeded` error |
-| **Retry hook** | `onRetry` callback lets you log or observe each retry attempt |
-| **Zero runtime deps** | Only peer dependency is `zod` |
-
----
-
-## Installation
+## 설치
 
 ```bash
 npm install ts-safe-http-client zod
@@ -47,7 +33,7 @@ npm install ts-safe-http-client zod
 
 ---
 
-## Usage
+## 사용법
 
 ```ts
 import { safeFetch, SafeFetchOptions } from 'ts-safe-http-client';
@@ -62,7 +48,7 @@ const ProductSchema = z.object({
 const options: SafeFetchOptions = {
   timeout: 3000,
   onRetry: (attempt, delay, retriesLeft) => {
-    console.log(`Retry #${attempt} in ${delay}ms — ${retriesLeft} left`);
+    console.log(`재시도 ${attempt}회차 — ${delay}ms 후 재요청 (남은 횟수: ${retriesLeft})`);
   },
 };
 
@@ -70,15 +56,14 @@ const product = await safeFetch(
   'https://api.example.com/products/1',
   ProductSchema,
   options,
-  3, // maxRetry
 );
 
-console.log(product.name); // fully typed: { id, name, price }
+console.log(product.name); // 타입 완전히 추론됨
 ```
 
 ---
 
-## API Reference
+## API
 
 ### `safeFetch<T>(url, schema, options?, maxRetry?)`
 
@@ -87,84 +72,81 @@ safeFetch<T>(
   url: string,
   schema: ZodType<T>,
   options?: SafeFetchOptions,
-  maxRetry?: number       // default: 3
+  maxRetry?: number        // 기본값: 3
 ): Promise<T>
 ```
 
-#### `SafeFetchOptions`
+### `SafeFetchOptions`
 
-Extends the native `RequestInit` with two additions:
+네이티브 `RequestInit`을 그대로 확장한다. 추가 옵션은 두 가지다.
 
 ```ts
 interface SafeFetchOptions extends RequestInit {
-  timeout?: number;  // ms, default: 5000
+  timeout?: number;   // ms 단위, 기본값: 5000
   onRetry?: (attempt: number, delay: number, retriesLeft: number) => void;
 }
 ```
 
 ---
 
-## Error Handling
+## 에러 처리 규칙
 
-```
-Request
-  │
-  ├─ 2xx ──► Zod parse ──► success / ZodError (no retry)
-  │
-  ├─ 4xx ──► throw immediately (no retry)
-  │
-  ├─ 5xx ──► retry → … → throw on exhaustion
-  │
-  └─ Timeout / AbortError ──► retry → … → "Timeout (Xms) exceeded"
-```
+재시도 여부가 헷갈릴 수 있어서 명확하게 정리했다.
 
-| Condition | Retried? |
-|---|---|
-| `5xx` server error | Yes |
-| Network timeout (`AbortError`) | Yes |
-| `4xx` client error | No |
-| Zod validation failure | No |
-| Generic network error | No |
+| 상황 | 재시도 | 비고 |
+|---|:---:|---|
+| 5xx 서버 오류 | O | 1s → 2s → 3s 간격 |
+| 타임아웃 (AbortError) | O | 1s → 2s → 3s 간격 |
+| 4xx 클라이언트 오류 | X | 즉시 throw |
+| Zod 검증 실패 | X | 즉시 throw |
+| 네트워크 에러 | X | 즉시 throw |
 
 ---
 
-## Project Structure
+## 테스트
+
+정상 케이스부터 예외 케이스까지 8가지 시나리오를 검증한다.
+
+```bash
+npm test
+```
+
+```
+✓ 정상 응답이면 스키마 검증 후 데이터를 반환한다
+✓ 5xx 응답이면 재시도 후 성공할 수 있다
+✓ 타임아웃이 발생하면 재시도 후 성공할 수 있다
+✓ 재시도 소진 후 타임아웃이면 에러를 던진다
+✓ 4xx 응답이면 재시도 없이 즉시 에러를 던진다
+✓ 5xx 응답에서 재시도를 모두 소진하면 에러를 던진다
+✓ 스키마 검증 실패 시 에러를 던진다
+✓ 네트워크 에러는 재시도 없이 즉시 던진다
+```
+
+---
+
+## 구조
 
 ```
 src/
- └─ HttpClient.ts        core logic — safeFetch, RetryableError, types
+ └─ HttpClient.ts     safeFetch 구현체, 타입 정의
 
 test/
- └─ client.test.ts       8 Jest test cases
+ └─ client.test.ts    Jest 테스트
 
 .github/workflows/
- └─ main.yml             CI: build + test on every push & PR
+ └─ main.yml          push/PR마다 빌드 + 테스트 자동 실행
 ```
 
 ---
 
-## Testing
+## 개발하면서 어려웠던 점
 
-Eight test cases cover the critical paths:
+`AbortController` + fake timers + Jest 조합이 생각보다 까다로웠다. 로컬에서는 잘 되다가 CI에서 타이머 동작이 달라 테스트가 깨지는 상황이 반복됐다.
 
-| Test case | Behaviour verified |
-|---|---|
-| Happy path | Schema validated, data returned |
-| 5xx → retry → success | Recovers on transient server error |
-| Timeout → retry → success | Recovers after AbortError |
-| Timeout exhausted | Throws `Timeout exceeded` |
-| 4xx response | Throws immediately, no retry |
-| 5xx exhausted | Throws after all retries consumed |
-| Schema mismatch | Zod error thrown, no retry |
-| Network error | Throws immediately, no retry |
-
-```bash
-npm test          # run once
-npm run test:watch  # watch mode
-```
+결국 fake timers 사용을 최소화하고, mock fetch에서 abort 이벤트를 직접 시뮬레이션하는 방식으로 해결했다. 덕분에 실제 환경과 테스트 환경 사이의 간극이 훨씬 줄었다.
 
 ---
 
-## License
+## 라이선스
 
 [MIT](LICENSE)
